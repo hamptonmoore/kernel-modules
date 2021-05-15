@@ -1,7 +1,7 @@
 #include <linux/module.h>
 #include <linux/string.h>
 #include <linux/fs.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 MODULE_LICENSE("GPL");
 
@@ -10,18 +10,16 @@ void cleanup_module(void);
 static int device_open(struct inode *, struct file *);
 static int device_release(struct inode *, struct file *);
 static ssize_t device_read(struct file *, char *, size_t, loff_t *);
-static ssize_t device_write(struct file *,
-                            const char *, size_t, loff_t *);
+static ssize_t device_write(struct file *, const char *, size_t, loff_t *);
 
 #define SUCCESS 0
-#define DEVICE_NAME "Andrew-As-A-Service"
-#define BLOCK_SIZE 65536
+#define DEVICE_NAME "reverse"
+#define BUFFER_SIZE 1024
 
 static int Major;
 static int Device_Open = 0;
-static unsigned int seed = 5323;
-static char AAA[BLOCK_SIZE] = {65};
-static int i = 0;
+static char txt[BUFFER_SIZE] = {0};
+static int readIndex = 0;
 
 static struct file_operations fops = {
     .read = device_read,
@@ -40,7 +38,7 @@ int init_module(void)
     return Major;
   }
 
-  printk(KERN_INFO "Andrew-As-A-Service has been loaded, use 'mknod /dev/aaas c %d 0' to mount it.\n", Major);
+  printk(KERN_INFO "Reverse has been loaded, use 'mknod /dev/reverse c %d 0' to mount it.\n", Major);
 
   return SUCCESS;
 }
@@ -61,16 +59,6 @@ static int device_open(struct inode *inode, struct file *filp)
   Device_Open++;
   try_module_get(THIS_MODULE);
 
-  memset(AAA, 65, BLOCK_SIZE);
-  for (i = 0; i < BLOCK_SIZE; i++)
-  {
-    seed = (8253729 * seed + 2396403);
-    if (((seed % 32767) % 2) == 1)
-    {
-      AAA[i] += 32;
-    }
-  }
-
   return SUCCESS;
 }
 
@@ -79,26 +67,41 @@ static int device_release(struct inode *inode, struct file *filp)
 {
   Device_Open--;
   module_put(THIS_MODULE);
-  return SUCCESS;
+  return 0;
 }
 
 // Called on read
 static ssize_t device_read(struct file *filp, char *buffer, size_t length, loff_t *offset)
 {
 
-  seed = (8253729 * seed + 2396403);
-  int start = (seed % 32767);
-  seed = (8253729 * seed + 2396403);
-  length = (seed % 32767) + 1;
-  copy_to_user(buffer, AAA + start, length);
-  return length;
+  int count = 0;
+  while (txt[readIndex] != 0)
+  {
+    put_user(txt[readIndex], buffer);
+    readIndex++;
+    buffer++;
+    count++;
+  }
+  return count;
 }
 
 // Called on write
-static ssize_t
-device_write(struct file *filp,
-             const char *buf, size_t len, loff_t *off)
+static ssize_t device_write(struct file *filp, const char *buffer, size_t length, loff_t *offset)
 {
-  printk(KERN_ALERT "Sorry, this operation isn't supported.\n");
-  return -EINVAL;
+  int index = length - 1;
+  int count = 0;
+  readIndex = 0;
+  memset(txt, 0, BUFFER_SIZE);
+
+  // while (length > 0)
+  // {
+  //   printk(KERN_INFO "Copying byte from %d to %d", index, count);
+  //   txt[count++] = buffer[index--];
+  //   printk(KERN_INFO "Copied Byte");
+  //   length--;
+  // }
+  printk(KERN_INFO "All the info we have %zu %zu %zu", buffer, length, offset);
+  printk(KERN_INFO "Copying byte %zu", buffer);
+
+  return length;
 }
